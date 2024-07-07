@@ -20,7 +20,6 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit.SECONDS
 
 open class RPC(
@@ -36,15 +35,10 @@ open class RPC(
         ignoreUnknownKeys = true
     }
 
-    private val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
-    }
-
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, SECONDS)
         .readTimeout(10, SECONDS)
         .writeTimeout(10, SECONDS)
-        .addInterceptor(logging)
         .build()
 
     private val request = Request.Builder()
@@ -53,7 +47,6 @@ open class RPC(
 
     private var webSocket = client.newWebSocket(request, Listener())
 
-    private var status = "idle"
     var type: Type? = null
     var activityName: String? = null
     var details: String? = null
@@ -64,7 +57,9 @@ open class RPC(
     var endTimeStamp: Long? = null
     var buttons = listOf<Link>()
 
-    private suspend fun createPresence(): String {
+    private fun status(invisible: Boolean) = if (invisible) "invisible" else "idle"
+
+    private suspend fun createPresence(invisible: Boolean): String {
         val buttons = buttons.ifEmpty { null }
         return json.encodeToString(Presence.Response(
             3,
@@ -93,7 +88,7 @@ open class RPC(
                 ),
                 afk = true,
                 since = creationTime,
-                status = status
+                status = status(invisible)
             )
         )
         )
@@ -127,24 +122,24 @@ open class RPC(
             )
         )
         webSocket.send(json.encodeToString(response).also { println("Identity : $it") })
+        sendDefaultPresence(true)
     }
 
-    private val user = MutableStateFlow<User?>(null)
-    suspend fun send(block: RPC.() -> Unit) {
+    val user = MutableStateFlow<User?>(null)
+    suspend fun send(invisible: Boolean, block: RPC.() -> Unit) {
         block.invoke(this@RPC)
         user.first { it != null }
-        val presence = createPresence()
+        val presence = createPresence(invisible)
         println("Sending Presence : $presence")
         webSocket.send(presence)
     }
 
-    fun close() {
-        println("Sending Presence : $status")
+    fun sendDefaultPresence(invisible: Boolean) {
         webSocket.send(
             json.encodeToString(
                 Presence.Response(
                     3,
-                    Presence(status = status)
+                    Presence(status = status(invisible))
                 )
             )
         )
@@ -170,6 +165,7 @@ open class RPC(
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             val res = json.decodeFromString<Res>(text)
+            println("Received : ${res.op}")
             seq = res.s
             when (res.op) {
                 10 -> {
@@ -180,7 +176,9 @@ open class RPC(
                 }
 
                 0 -> if (res.t == "READY") {
+                    println("User Ready")
                     user.value = json.decodeFromString<User.Response>(text).d.user
+                    println("${user.value}")
                 }
 
                 1 -> {
