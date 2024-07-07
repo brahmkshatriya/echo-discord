@@ -47,9 +47,8 @@ jobs:
         env:
           ROLE: ${{ secrets.DISCORD_PING_ROLE_ID }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          THREAD: ${{ secrets.DISCORD_THREAD_ID }}
         run: |
           message=$(echo "**${{ env.VERSION }}**\n${{ env.COMMIT }}\n<@&${{ env.ROLE }}>")
           curl -F "payload_json={\"content\":\"${message}\"}" \
           -F "echo_beta=@app/build/discord-${{ env.VERSION }}.apk" \
-          ${{ env.WEBHOOK }}?thread_id=${{ env.THREAD }}
+          ${{ env.WEBHOOK }}
