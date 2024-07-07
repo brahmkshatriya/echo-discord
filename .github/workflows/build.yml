@@ -48,7 +48,7 @@ jobs:
           ROLE: ${{ secrets.DISCORD_PING_ROLE_ID }}
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          message=$(echo "**${{ env.VERSION }}**\n${{ env.COMMIT }}\n<@&${{ env.ROLE }}>")
+          message=$(echo "<@&${{ env.ROLE }}> **Discord RPC Extension : ${{ env.VERSION }}**\n${{ env.COMMIT }}")
           curl -F "payload_json={\"content\":\"${message}\"}" \
           -F "echo_beta=@app/build/discord-${{ env.VERSION }}.apk" \
           ${{ env.WEBHOOK }}
