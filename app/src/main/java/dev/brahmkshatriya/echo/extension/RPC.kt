@@ -1,6 +1,5 @@
 package dev.brahmkshatriya.echo.extension
 
-import com.lagradost.nicehttp.Requests.Companion.await
 import dev.brahmkshatriya.echo.extension.models.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +8,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -74,9 +72,9 @@ open class RPC(
                             Activity.Timestamps(startTimestamp, endTimeStamp)
                         else null,
                         assets = Activity.Assets(
-                            largeImage = largeImage?.url?.discordUrl(),
+                            largeImage = largeImage?.url?.discordUri(),
                             largeText = largeImage?.label,
-                            smallImage = smallImage?.url?.discordUrl(),
+                            smallImage = smallImage?.url?.discordUri(),
                             smallText = smallImage?.label
                         ),
                         buttons = buttons?.map { it.label },
@@ -94,18 +92,8 @@ open class RPC(
         )
     }
 
-    @Serializable
-    data class KizzyApi(val id: String)
-
-    private val api = "https://kizzy-api.vercel.app/image?url="
-    private suspend fun String.discordUrl(): String? {
-        if (startsWith("mp:")) return this
-        val request = Request.Builder().url("$api$this").build()
-        return runCatching {
-            val res = client.newCall(request).await()
-            json.decodeFromString<KizzyApi>(res.body.string()).id
-        }.getOrNull()
-    }
+    private val assetApi = RPCExternalAsset(applicationId, token, client, json)
+    private suspend fun String.discordUri() = assetApi.getDiscordUri(this)
 
     private fun sendIdentity() {
         val response = Identity.Response(
@@ -121,7 +109,7 @@ open class RPC(
                 intents = 0
             )
         )
-        webSocket.send(json.encodeToString(response).also { println("Identity : $it") })
+        webSocket.send(json.encodeToString(response))
         sendDefaultPresence(true)
     }
 
@@ -130,7 +118,6 @@ open class RPC(
         block.invoke(this@RPC)
         user.first { it != null }
         val presence = createPresence(invisible)
-        println("Sending Presence : $presence")
         webSocket.send(presence)
     }
 
@@ -165,7 +152,6 @@ open class RPC(
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             val res = json.decodeFromString<Res>(text)
-            println("Received : ${res.op}")
             seq = res.s
             when (res.op) {
                 10 -> {
@@ -176,7 +162,6 @@ open class RPC(
                 }
 
                 0 -> if (res.t == "READY") {
-                    println("User Ready")
                     user.value = json.decodeFromString<User.Response>(text).d.user
                     println("${user.value}")
                 }
