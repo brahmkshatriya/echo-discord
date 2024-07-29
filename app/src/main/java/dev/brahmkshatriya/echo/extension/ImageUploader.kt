@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.graphics.Bitmap
 import dev.brahmkshatriya.echo.common.models.ImageHolder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.Call
@@ -42,8 +44,8 @@ class ImageUploader(
     private val api = "https://tmpfiles.org/api/v1/upload"
     private suspend fun uploadImage(byteArray: ByteArray): String? {
         val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart(
-                "file", "image.png", byteArray.toRequestBody("image/*".toMediaType())
-            ).build()
+            "file", "image.png", byteArray.toRequestBody("image/*".toMediaType())
+        ).build()
         val request = Request.Builder().url(api).post(requestBody).build()
         return runCatching {
             val res = client.newCall(request).await()
@@ -72,9 +74,13 @@ class ImageUploader(
             }
 
             is ImageHolder.UriImageHolder -> {
-                val byteArray = runCatching {
-                    getApplication().contentResolver.openInputStream(image.uri)?.readBytes()
-                }.getOrNull() ?: return null
+                val byteArray =
+                    withContext(Dispatchers.Main) {
+                        runCatching {
+                            getApplication().contentResolver.openInputStream(image.uri)!!
+                                .readBytes()
+                        }
+                    }.getOrNull() ?: return null
                 return uploadImage(byteArray)
             }
         }
