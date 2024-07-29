@@ -7,7 +7,6 @@ import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ExtensionType
-import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Track
@@ -17,6 +16,7 @@ import dev.brahmkshatriya.echo.common.settings.SettingCategory
 import dev.brahmkshatriya.echo.common.settings.SettingList
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
+import dev.brahmkshatriya.echo.extension.models.ImageLink
 import dev.brahmkshatriya.echo.extension.models.Link
 import dev.brahmkshatriya.echo.extension.models.Type
 import kotlinx.coroutines.flow.first
@@ -37,12 +37,6 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
                     "invisible",
                     "Stay invisible when you are not actually online. If this is off, you will become \"idle\" on discord.",
                     false
-                ),
-                SettingSwitch(
-                    "Show Album/Playlist Name as Activity",
-                    "showContext",
-                    "\"Listening to [Album/Playlist Name]\", instead of the current Song Name.",
-                    true
                 )
             )
         ),
@@ -53,19 +47,31 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
                 SettingSwitch(
                     "Show as Playing Echo",
                     "typePlaying",
-                    "Enabling this will show Remaining/Elapsed Time for PC Users too.",
+                    "Instead of \"Listening to [...]\", this will also allow to show Remaining/Elapsed Time for PC Users too.",
                     false
                 ),
                 SettingSwitch(
-                    "Always show Elapsed Time",
-                    "showElapsedTime",
-                    "Show Elapsed Time instead of Remaining Time.",
-                    true
+                    "Show Album/Playlist Name as Activity",
+                    "showContext",
+                    "\"Listening to [Album/Playlist Name]\", instead of the current Song Name.",
+                    false
+                ),
+                SettingSwitch(
+                    "Show Cover Image",
+                    "showCoverImage",
+                    "Show cover image of the music on the RPC.",
+                    false
                 ),
                 SettingSwitch(
                     "Show Echo Icon",
                     "showEchoIcon",
                     "Show Small Echo Icon on the RPC.",
+                    true
+                ),
+                SettingSwitch(
+                    "Always show Elapsed Time",
+                    "showElapsedTime",
+                    "Show Elapsed Time instead of Remaining Time.",
                     true
                 ),
                 SettingList(
@@ -96,6 +102,9 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
 
     private val showElapsedTime
         get() = setting.getBoolean("showElapsedTime") ?: true
+
+    private val showCoverImage
+        get() = setting.getBoolean("showCoverImage") ?: true
 
     private val showEchoIcon
         get() = setting.getBoolean("showEchoIcon") ?: true
@@ -141,6 +150,9 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
 
     override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {}
 
+    private val appIconImage =
+        "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png".toImageHolder()
+
     override suspend fun onStartedPlaying(clientId: String, context: EchoMediaItem?, track: Track) {
         val rpc = rpc ?: throw loginRequiredException()
         rpc.send(invisibility) {
@@ -148,7 +160,7 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
             type = if (typePlaying) Type.PLAYING else Type.LISTENING
 
             activityName = if (typePlaying) "Echo"
-            else if(showContext) context?.title ?: track.title
+            else if (showContext) context?.title ?: track.title
             else track.title
 
             val artists = track.artists.joinToString(", ") { it.name }
@@ -159,23 +171,15 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
             endTimeStamp =
                 track.duration?.let { startTimestamp!! + it }.takeIf { !showElapsedTime }
 
-            largeImage = when (val cover = track.cover) {
-                is ImageHolder.UrlRequestImageHolder -> {
-                    val url = cover.request.url
-                    Link(track.album?.title ?: track.title, url)
-                }
+            largeImage = track.cover?.let {
+                ImageLink(track.album?.title ?: track.title, it)
+            }.takeIf { showCoverImage }
+            smallImage = ImageLink("Echo", appIconImage).takeIf { showEchoIcon }
 
-                else -> null
-            }
-
-            smallImage = Link(
-                "Echo",
-                "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png"
-            ).takeIf { showEchoIcon }
-
-
-            val playLink =
-                Link("Play", getPlayerUrl(clientId, context ?: track.toMediaItem()))
+            val playLink = Link(
+                "Play",
+                getPlayerUrl(clientId, context ?: track.toMediaItem())
+            )
             buttons = when (showButtons) {
                 "play" -> listOf(playLink)
                 "play_echo" -> listOf(

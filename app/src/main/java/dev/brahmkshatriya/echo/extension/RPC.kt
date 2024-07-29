@@ -49,8 +49,8 @@ open class RPC(
     var activityName: String? = null
     var details: String? = null
     var state: String? = null
-    var largeImage: Link? = null
-    var smallImage: Link? = null
+    var largeImage: ImageLink? = null
+    var smallImage: ImageLink? = null
     var startTimestamp: Long? = null
     var endTimeStamp: Long? = null
     var buttons = listOf<Link>()
@@ -72,9 +72,9 @@ open class RPC(
                             Activity.Timestamps(startTimestamp, endTimeStamp)
                         else null,
                         assets = Activity.Assets(
-                            largeImage = largeImage?.url?.discordUri(),
+                            largeImage = largeImage?.discordUri(),
                             largeText = largeImage?.label,
-                            smallImage = smallImage?.url?.discordUri(),
+                            smallImage = smallImage?.discordUri(),
                             smallText = smallImage?.label
                         ),
                         buttons = buttons?.map { it.label },
@@ -93,7 +93,11 @@ open class RPC(
     }
 
     private val assetApi = RPCExternalAsset(applicationId, token, client, json)
-    private suspend fun String.discordUri() = assetApi.getDiscordUri(this)
+    private val imageUploader = ImageUploader(client, json)
+    private suspend fun ImageLink.discordUri(): String? {
+        val url = imageUploader.getImageUrl(imageHolder) ?: return null
+        return assetApi.getDiscordUri(url)
+    }
 
     private fun sendIdentity() {
         val response = Identity.Response(
