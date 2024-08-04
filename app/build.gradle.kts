@@ -67,7 +67,7 @@ android {
 
 
 dependencies {
-    val libVersion = "7625542c94"
+    val libVersion = "main-SNAPSHOT"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("com.github.Blatzar:NiceHttp:0.4.4")
     implementation("com.squareup.okhttp3:logging-interceptor:4.9.0")

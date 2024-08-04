@@ -3,10 +3,9 @@ package dev.brahmkshatriya.echo.extension
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
-import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
+import dev.brahmkshatriya.echo.common.models.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
-import dev.brahmkshatriya.echo.common.models.ExtensionType
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Track
@@ -126,6 +125,9 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
 
     override val loginWebViewInitialUrl = Request("https://discord.com/login")
     override val loginWebViewStopUrlRegex = "https://discord\\.com/channels/@me".toRegex()
+    override suspend fun getCurrentUser() = rpc?.user?.value?.run {
+        User(id, username, userAvatar().toImageHolder())
+    }
 
     override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
         if (data.isBlank()) throw Exception("Login Failed")
@@ -145,16 +147,13 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
         rpc = RPC(token, applicationId)
     }
 
-    private fun loginRequiredException() =
-        LoginRequiredException("discord-rpc", "Discord", ExtensionType.TRACKER)
-
     override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {}
 
     private val appIconImage =
         "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png".toImageHolder()
 
     override suspend fun onStartedPlaying(clientId: String, context: EchoMediaItem?, track: Track) {
-        val rpc = rpc ?: throw loginRequiredException()
+        val rpc = rpc ?: throw ClientException.LoginRequired()
         rpc.send(invisibility) {
 
             type = if (typePlaying) Type.PLAYING else Type.LISTENING
@@ -178,7 +177,7 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
 
             val playLink = Link(
                 "Play",
-                getPlayerUrl(clientId, context ?: track.toMediaItem())
+                getPlayerUrl(clientId, track.toMediaItem())
             )
             buttons = when (showButtons) {
                 "play" -> listOf(playLink)
@@ -205,7 +204,7 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
     }
 
     override suspend fun onStoppedPlaying(clientId: String, context: EchoMediaItem?, track: Track) {
-        val rpc = rpc ?: throw loginRequiredException()
+        val rpc = rpc ?: throw ClientException.LoginRequired()
         rpc.sendDefaultPresence(invisibility)
     }
 
