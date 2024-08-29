@@ -19,8 +19,25 @@ import dev.brahmkshatriya.echo.extension.models.ImageLink
 import dev.brahmkshatriya.echo.extension.models.Link
 import dev.brahmkshatriya.echo.extension.models.Type
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit.SECONDS
 
-class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient {
+open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient {
+
+    val json = Json {
+        encodeDefaults = true
+        allowStructuredMapKeys = true
+        ignoreUnknownKeys = true
+    }
+
+    val client = OkHttpClient.Builder()
+        .connectTimeout(10, SECONDS)
+        .readTimeout(10, SECONDS)
+        .writeTimeout(10, SECONDS)
+        .build()
+
+    open val uploader = ImageUploader(client, json)
 
     private val applicationId = "1135077904435396718"
 
@@ -129,10 +146,12 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
         User(id, username, userAvatar().toImageHolder())
     }
 
+    private fun getRPC(token: String) = RPC(client, json, token, applicationId, uploader)
+
     override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
         if (data.isBlank()) throw Exception("Login Failed")
         val token = data.trim('"')
-        val rpc = RPC(token, applicationId)
+        val rpc = getRPC(token)
         val user = rpc.user.first { it != null }
         rpc.stop()
         return listOf(
@@ -144,7 +163,7 @@ class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient 
     override suspend fun onSetLoginUser(user: User?) {
         rpc?.stop()
         val token = user?.id ?: return
-        rpc = RPC(token, applicationId)
+        rpc = getRPC(token)
     }
 
     override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {}

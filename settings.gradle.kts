@@ -18,4 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Discord RPC"
 include(":app")
- 
+include(":ext")

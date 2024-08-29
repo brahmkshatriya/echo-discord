@@ -1,6 +1,13 @@
 package dev.brahmkshatriya.echo.extension
 
-import dev.brahmkshatriya.echo.extension.models.*
+import dev.brahmkshatriya.echo.extension.models.Activity
+import dev.brahmkshatriya.echo.extension.models.Identity
+import dev.brahmkshatriya.echo.extension.models.ImageLink
+import dev.brahmkshatriya.echo.extension.models.Link
+import dev.brahmkshatriya.echo.extension.models.Presence
+import dev.brahmkshatriya.echo.extension.models.Res
+import dev.brahmkshatriya.echo.extension.models.Type
+import dev.brahmkshatriya.echo.extension.models.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,26 +25,16 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
-import java.util.concurrent.TimeUnit.SECONDS
 
-open class RPC(
+class RPC(
+    private val client: OkHttpClient,
+    private val json: Json,
     private val token: String,
-    private val applicationId: String
+    private val applicationId: String,
+    private val imageUploader: ImageUploader
 ) {
 
     private val creationTime = System.currentTimeMillis()
-
-    private val json = Json {
-        encodeDefaults = true
-        allowStructuredMapKeys = true
-        ignoreUnknownKeys = true
-    }
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, SECONDS)
-        .readTimeout(10, SECONDS)
-        .writeTimeout(10, SECONDS)
-        .build()
 
     private val request = Request.Builder()
         .url("wss://gateway.discord.gg/?encoding=json&v=10")
@@ -93,7 +90,6 @@ open class RPC(
     }
 
     private val assetApi = RPCExternalAsset(applicationId, token, client, json)
-    private val imageUploader = ImageUploader(client, json)
     private suspend fun ImageLink.discordUri(): String? {
         val url = imageUploader.getImageUrl(imageHolder) ?: return null
         return assetApi.getDiscordUri(url)

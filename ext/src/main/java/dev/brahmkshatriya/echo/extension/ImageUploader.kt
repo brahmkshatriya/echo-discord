@@ -1,11 +1,6 @@
 package dev.brahmkshatriya.echo.extension
 
-import android.annotation.SuppressLint
-import android.app.Application
-import android.graphics.Bitmap
 import dev.brahmkshatriya.echo.common.models.ImageHolder
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.Call
@@ -16,22 +11,17 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 
-class ImageUploader(
+open class ImageUploader(
     private val client: OkHttpClient, private val json: Json
 ) {
 
-    @SuppressLint("PrivateApi")
-    private fun getApplication(): Application {
-        return Class.forName("android.app.ActivityThread").getMethod("currentApplication")
-            .invoke(null) as Application
-    }
+    open suspend fun getByteArray(uri: String): ByteArray? = null
 
     @Serializable
     data class ApiResponse(
@@ -67,29 +57,11 @@ class ImageUploader(
                 }
             }
 
-            is ImageHolder.BitmapImageHolder -> {
-                val byteArray =
-                    runCatching { image.bitmap.toByteArray() }.getOrNull() ?: return null
-                return uploadImage(byteArray)
-            }
-
             is ImageHolder.UriImageHolder -> {
-                val byteArray =
-                    withContext(Dispatchers.Main) {
-                        runCatching {
-                            getApplication().contentResolver.openInputStream(image.uri)!!
-                                .readBytes()
-                        }
-                    }.getOrNull() ?: return null
+                val byteArray = getByteArray(image.uri) ?: return null
                 return uploadImage(byteArray)
             }
         }
-    }
-
-    private fun Bitmap.toByteArray(): ByteArray {
-        val stream = ByteArrayOutputStream()
-        compress(Bitmap.CompressFormat.PNG, 100, stream)
-        return stream.toByteArray()
     }
 
     private suspend inline fun Call.await(): okhttp3.Response {

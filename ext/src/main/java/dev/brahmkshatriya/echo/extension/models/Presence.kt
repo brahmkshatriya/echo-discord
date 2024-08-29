@@ -1,4 +1,5 @@
 package dev.brahmkshatriya.echo.extension.models
+
 import kotlinx.serialization.Serializable
 
 @Serializable

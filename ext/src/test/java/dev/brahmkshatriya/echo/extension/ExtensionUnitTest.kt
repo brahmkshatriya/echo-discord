@@ -61,7 +61,8 @@ class ExtensionUnitTest {
             listOf(Artist("1", "Artist 1")),
             Album("1", "Album 1"),
             ImageHolder.UrlRequestImageHolder(
-                "https://i1.sndcdn.com/artworks-eU7CAR7zFWrT0eAq-IQjtQg-t500x500.jpg".toRequest(),
+                "https://i1.sndcdn.com/artworks-eU7CAR7zFWrT0eAq-IQjtQg-t500x500.jpg"
+                    .toRequest(mapOf("brih" to "brurh")),
                 true
             )
         )
