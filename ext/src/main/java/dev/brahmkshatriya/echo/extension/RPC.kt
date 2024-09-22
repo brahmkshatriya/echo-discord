@@ -114,7 +114,7 @@ class RPC(
     }
 
     val user = MutableStateFlow<User?>(null)
-    suspend fun send(invisible: Boolean, block: RPC.() -> Unit) {
+    suspend fun send(invisible: Boolean, block: suspend RPC.() -> Unit) {
         block.invoke(this@RPC)
         user.first { it != null }
         val presence = createPresence(invisible)
@@ -163,7 +163,6 @@ class RPC(
 
                 0 -> if (res.t == "READY") {
                     user.value = json.decodeFromString<User.Response>(text).d.user
-                    println("${user.value}")
                 }
 
                 1 -> {
@@ -181,14 +180,14 @@ class RPC(
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            println("Server Closed : $code $reason")
+            println("Discord WebSocket Server Closed : $code $reason")
             if (code == 4000) {
                 previous?.cancel()
             }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            println("Failure : ${t.message}")
+            println("Discord WebSocket Failure : ${t.message}")
             if (t.message != "Interrupt")
                 this@RPC.webSocket = client.newWebSocket(request, Listener())
         }
