@@ -1,10 +1,11 @@
 package dev.brahmkshatriya.echo.extension
 
+import dev.brahmkshatriya.echo.common.MusicExtension
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
-import dev.brahmkshatriya.echo.common.models.ClientException
+import dev.brahmkshatriya.echo.common.helpers.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
@@ -122,7 +123,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                         "Disable for Extensions",
                         "disable",
                         "Disable RPC for these extensions.",
-                        clients.keys.toList(),
+                        clients.values.map { it.name },
                         clients.keys.toList(),
                     )
                 )
@@ -268,18 +269,18 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     }
 
     override val requiredMusicClients: List<String> = listOf()
+    private val clients = mutableMapOf<String, MusicExtension>()
+    override fun setMusicExtensions(list: List<MusicExtension>) {
+        list.forEach { clients[it.id] = it }
+    }
+
     private suspend fun getUserData(clientId: String) = runCatching {
-        val client = clients[clientId]
+        val client = clients[clientId]?.instance?.value?.getOrNull()
         if (client is LoginClient && client is ShareClient) {
             val user = client.getCurrentUser() ?: return@runCatching null
             val link = client.onShare(user.toMediaItem())
             user to link
         } else null
     }.getOrNull()
-
-    private val clients = mutableMapOf<String, ExtensionClient>()
-    override fun setMusicClients(list: List<Pair<String, ExtensionClient>>) {
-        list.forEach { clients[it.first] = it.second }
-    }
 
 }
