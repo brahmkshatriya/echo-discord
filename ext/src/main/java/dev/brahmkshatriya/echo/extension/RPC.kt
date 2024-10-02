@@ -64,7 +64,7 @@ class RPC(
                         name = activityName,
                         state = state,
                         details = details,
-                        type = type?.ordinal,
+                        type = type?.value,
                         timestamps = if (startTimestamp != null)
                             Activity.Timestamps(startTimestamp, endTimeStamp)
                         else null,
@@ -85,8 +85,7 @@ class RPC(
                 since = creationTime,
                 status = status(invisible)
             )
-        )
-        )
+        )).also { println("data : $it") }
     }
 
     private val assetApi = RPCExternalAsset(applicationId, token, client, json)

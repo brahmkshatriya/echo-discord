@@ -33,6 +33,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         encodeDefaults = true
         allowStructuredMapKeys = true
         ignoreUnknownKeys = true
+        prettyPrint = true
     }
 
     val client = OkHttpClient.Builder()
@@ -44,6 +45,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     open val uploader = ImageUploader(client, json)
 
     private val applicationId = "1135077904435396718"
+    private val appName = "Echo"
+    private val appUrl = "https://github.com/brahmkshatriya/echo"
 
     override suspend fun onExtensionSelected() {}
 
@@ -53,42 +56,33 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                 "Looks",
                 "looks",
                 listOf(
-                    SettingSwitch(
-                        "Show as \"Playing Echo\"",
-                        "typePlaying",
-                        "Instead of \"Listening to [...]\", this will also allow to show Remaining/Elapsed Time for PC Users too.",
-                        false
+                    SettingMultipleChoice(
+                        "Activity Type",
+                        "activityType",
+                        "How the RPC activity title will be shown",
+                        Type.entries.map { it.title },
+                        Type.entries.map { it.name },
                     ),
-                    SettingSwitch(
-                        "Show Album/Playlist Name as Activity",
-                        "showContext",
-                        "\"Listening to [Album/Playlist Name]\", instead of the current Song's Name.",
-                        false
+                    SettingMultipleChoice(
+                        "Activity Name",
+                        "activityName",
+                        "Name of the Activity in \"Listening to [...]\"",
+                        listOf(appName, "[Extension Name]","[Album/Playlist Name]", "[Song Name]"),
+                        listOf("a_echo", "b_extension", "c_context", "d_track"),
+                        setOf(0)
                     ),
-//                    SettingSwitch(
-//                        "Show Cover Image",
-//                        "showCoverImage",
-//                        "Show cover image of the music on the RPC.",
-//                        true
-//                    ),
                     SettingSwitch(
                         "Show Echo Icon",
                         "showEchoIcon",
                         "Show Small Echo Icon on the RPC.",
                         true
                     ),
-//                    SettingSwitch(
-//                        "Always show Elapsed Time",
-//                        "showElapsedTime",
-//                        "Show Elapsed Time instead of Remaining Time.",
-//                        true
-//                    ),
                     SettingMultipleChoice(
                         "RPC Buttons",
                         "selectedButtons",
                         "The buttons to show on the RPC. (Only 2 will be visible)",
                         listOf(
-                            "Play/Play on Echo",
+                            "Play/Play on $appName",
                             "Song Artist",
                             "Profile",
                             "Try Echo"
@@ -130,17 +124,11 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
             )
         )
 
-    private val typePlaying
-        get() = setting.getBoolean("typePlaying") ?: false
+    private val activityType
+        get() = setting.getStringSet("activityType")?.firstOrNull() ?: Type.Listening.name
 
-    private val showContext
-        get() = setting.getBoolean("showContext") ?: true
-
-    private val showElapsedTime
-        get() = setting.getBoolean("showElapsedTime") ?: true
-
-    private val showCoverImage
-        get() = setting.getBoolean("showCoverImage") ?: true
+    private val activityNameType
+        get() = setting.getStringSet("activityName")?.firstOrNull() ?: "a_echo"
 
     private val showEchoIcon
         get() = setting.getBoolean("showEchoIcon") ?: true
@@ -207,27 +195,26 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         if (clientId in disableClients) return
 
         rpc.send(invisibility) {
-            type = if (typePlaying) Type.PLAYING else Type.LISTENING
+            type = Type.valueOf(activityType)
 
-            activityName = if (typePlaying) "Echo"
-            else if (showContext) context?.title ?: track.title
-            else track.title
+            activityName = when (activityNameType) {
+                "a_echo" -> appName
+                "b_extension" -> clients[clientId]?.name ?: clientId
+                "c_context" -> context?.title ?: track.album?.title ?: track.title
+                "d_track" -> track.title
+                else -> appName
+            }
 
             val artists = track.artists.joinToString(", ") { it.name }
             state = artists
             details = track.title
-
             startTimestamp = System.currentTimeMillis()
-            endTimeStamp =
-                track.duration?.let { startTimestamp!! + it }.takeIf { !showElapsedTime }
-
-            largeImage = track.cover?.let {
-                ImageLink(track.album?.title ?: track.title, it)
-            }.takeIf { showCoverImage }
-            smallImage = ImageLink("Echo", appIconImage).takeIf { showEchoIcon }
+            endTimeStamp = track.duration?.let { startTimestamp!! + it }
+            largeImage = track.cover?.let { ImageLink(track.album?.title ?: track.title, it) }
+            smallImage = ImageLink(appName, appIconImage).takeIf { showEchoIcon }
 
             val item = track.toMediaItem()
-            val uri = Link("Play on Echo", getPlayerUrl(clientId, item))
+            val uri = Link("Play on $appName", getPlayerUrl(clientId, item))
             val playLink = uri.takeIf { !useMusicUrl }
                 ?: getSharableUrl(clientId, item)?.let { Link("Play", it) }
                 ?: uri
@@ -239,7 +226,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                     }
 
                     "c_profile" -> getUserData(clientId)?.let { Link("Profile", it.second) }
-                    "d_try_echo" -> Link("Try Echo", "https://github.com/brahmkshatriya/echo")
+                    "d_try_echo" -> Link("Try $appName", appUrl)
                     else -> null
                 }
             }
