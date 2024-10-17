@@ -35,12 +35,12 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/discord-${{ env.VERSION }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/discord-${{ env.VERSION }}.eapk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/discord-${{ env.VERSION }}.eapk
 
       - name: Upload APK to Discord
         shell: bash
@@ -49,5 +49,5 @@ jobs:
         run: |
           message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
           curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@app/build/discord-${{ env.VERSION }}.apk" \
+          -F "file=@app/build/discord-${{ env.VERSION }}.eapk" \
           ${{ env.WEBHOOK }}

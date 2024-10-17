@@ -27,7 +27,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
 class RPC(
-    private val client: OkHttpClient,
+    client: OkHttpClient,
     private val json: Json,
     private val token: String,
     private val applicationId: String,
@@ -85,7 +85,7 @@ class RPC(
                 since = creationTime,
                 status = status(invisible)
             )
-        )).also { println("data : $it") }
+        ))
     }
 
     private val assetApi = RPCExternalAsset(applicationId, token, client, json)
@@ -187,8 +187,6 @@ class RPC(
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             println("Discord WebSocket Failure : ${t.message}")
-            if (t.message != "Interrupt")
-                this@RPC.webSocket = client.newWebSocket(request, Listener())
         }
     }
 }
