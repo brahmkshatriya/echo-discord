@@ -12,7 +12,7 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
-import dev.brahmkshatriya.echo.common.providers.MusicClientsProvider
+import dev.brahmkshatriya.echo.common.providers.MusicExtensionsProvider
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingCategory
 import dev.brahmkshatriya.echo.common.settings.SettingMultipleChoice
@@ -27,7 +27,7 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit.SECONDS
 
 open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient,
-    MusicClientsProvider {
+    MusicExtensionsProvider {
 
     val json = Json {
         encodeDefaults = true
@@ -67,7 +67,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                         "Activity Name",
                         "activityName",
                         "Name of the Activity in \"Listening to [...]\"",
-                        listOf(appName, "[Extension Name]","[Album/Playlist Name]", "[Song Name]"),
+                        listOf(appName, "[Extension Name]", "[Album/Playlist Name]", "[Song Name]"),
                         listOf("a_echo", "b_extension", "c_context", "d_track"),
                         setOf(0)
                     ),
@@ -117,8 +117,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                         "Disable for Extensions",
                         "disable",
                         "Disable RPC for these extensions.",
-                        clients.values.map { it.name },
-                        clients.keys.toList(),
+                        extensionsMap.values.map { it.name },
+                        extensionsMap.keys.toList(),
                     )
                 )
             )
@@ -185,21 +185,26 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         rpc = getRPC(token)
     }
 
-    override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {}
+    override suspend fun onMarkAsPlayed(
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {
+    }
 
     private val appIconImage =
         "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png".toImageHolder()
 
-    override suspend fun onStartedPlaying(clientId: String, context: EchoMediaItem?, track: Track) {
+    override suspend fun onStartedPlaying(
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {
         val rpc = rpc ?: throw ClientException.LoginRequired()
-        if (clientId in disableClients) return
+        if (extensionId in disableClients) return
 
         rpc.send(invisibility) {
             type = Type.valueOf(activityType)
 
             activityName = when (activityNameType) {
                 "a_echo" -> appName
-                "b_extension" -> clients[clientId]?.name ?: clientId
+                "b_extension" -> extensionsMap[extensionId]?.name ?: extensionId
                 "c_context" -> context?.title ?: track.album?.title ?: track.title
                 "d_track" -> track.title
                 else -> appName
@@ -214,18 +219,18 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
             smallImage = ImageLink(appName, appIconImage).takeIf { showEchoIcon }
 
             val item = track.toMediaItem()
-            val uri = Link("Play on $appName", getPlayerUrl(clientId, item))
+            val uri = Link("Play on $appName", getPlayerUrl(extensionId, item))
             val playLink = uri.takeIf { !useMusicUrl }
-                ?: getSharableUrl(clientId, item)?.let { Link("Play", it) }
+                ?: getSharableUrl(extensionId, item)?.let { Link("Play", it) }
                 ?: uri
             buttons = showButtons.mapNotNull { buttonId ->
                 when (buttonId) {
                     "a_play" -> playLink
                     "b_artist" -> track.artists.firstOrNull()?.run {
-                        getSharableUrl(clientId, toMediaItem())?.let { Link(name, it) }
+                        getSharableUrl(extensionId, toMediaItem())?.let { Link(name, it) }
                     }
 
-                    "c_profile" -> getUserData(clientId)?.let { Link("Profile", it.second) }
+                    "c_profile" -> getUserData(extensionId)?.let { Link("Profile", it.second) }
                     "d_try_echo" -> Link("Try $appName", appUrl)
                     else -> null
                 }
@@ -234,7 +239,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     }
 
     private suspend fun getSharableUrl(clientId: String, item: EchoMediaItem): String? {
-        val client = clients[clientId] as? ShareClient ?: return null
+        val client = extensionsMap[clientId] as? ShareClient ?: return null
         return runCatching { client.onShare(item) }.getOrNull()
     }
 
@@ -250,19 +255,21 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         return "echo://music/$clientId/$type/${mediaItem.id}"
     }
 
-    override suspend fun onStoppedPlaying(clientId: String, context: EchoMediaItem?, track: Track) {
+    override suspend fun onStoppedPlaying(
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {
         val rpc = rpc ?: throw ClientException.LoginRequired()
         rpc.sendDefaultPresence(invisibility)
     }
 
-    override val requiredMusicClients: List<String> = listOf()
-    private val clients = mutableMapOf<String, MusicExtension>()
-    override fun setMusicExtensions(list: List<MusicExtension>) {
-        list.forEach { clients[it.id] = it }
+    override val requiredMusicExtensions: List<String> = listOf()
+    private val extensionsMap = mutableMapOf<String, MusicExtension>()
+    override fun setMusicExtensions(extensions: List<MusicExtension>) {
+        extensions.forEach { extensionsMap[it.id] = it }
     }
 
-    private suspend fun getUserData(clientId: String) = runCatching {
-        val client = clients[clientId]?.instance?.value?.getOrNull()
+    private suspend fun getUserData(extensionId: String) = runCatching {
+        val client = extensionsMap[extensionId]?.instance?.value?.getOrNull()
         if (client is LoginClient && client is ShareClient) {
             val user = client.getCurrentUser() ?: return@runCatching null
             val link = client.onShare(user.toMediaItem())

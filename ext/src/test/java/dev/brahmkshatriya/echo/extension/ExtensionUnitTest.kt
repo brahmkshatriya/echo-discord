@@ -33,7 +33,7 @@ class ExtensionUnitTest {
             extension.onExtensionSelected()
             extension.onSetLoginUser(
                 User(
-                    "USER_TOKEN",
+                    "",
                     "Discord User"
                 )
             )
@@ -64,7 +64,8 @@ class ExtensionUnitTest {
                 "https://i1.sndcdn.com/artworks-eU7CAR7zFWrT0eAq-IQjtQg-t500x500.jpg"
                     .toRequest(mapOf("brih" to "brurh")),
                 true
-            )
+            ),
+            duration = 120000
         )
 
         suspend fun playStop() {

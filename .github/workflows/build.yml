@@ -9,8 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VERSION: $( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
-      COMMIT: $( jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2 )
+      NAME: Discord RPC Extension
+      TAG: discord
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -22,11 +23,14 @@ jobs:
           java-version: 17
           cache: 'gradle'
 
-      - name: Cook KeyStore
-        run:  echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Cook Env
+        run: |
+          echo -e "## ${{ env.NAME }}\n${{ github.event.head_commit.message }}" > commit.txt
+          version=$( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "APP_PATH=app/build/${{ env.TAG }}-$version.eapk" >> $GITHUB_ENV
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
+          chmod +x ./gradlew
 
       - name: Build with Gradle
         run: |
@@ -35,19 +39,39 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/discord-${{ env.VERSION }}.eapk
+          
+          cp app/build/outputs/apk/debug/app-debug.apk ${{ env.APP_PATH }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          path: app/build/discord-${{ env.VERSION }}.eapk
+          path: ${{ env.APP_PATH }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          make_latest: true
+          tag_name: v${{ env.VERSION }}
+          body_path: commit.txt
+          name: ${{ env.VERSION }}
+          files: ${{ env.APP_PATH }}
+
+      - name: Delete Old Releases
+        uses: sgpublic/delete-release-action@master
+        with:
+          release-drop: true
+          release-keep-count: 3
+          release-drop-tag: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload APK to Discord
         shell: bash
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
+          commit=$(jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2)
+          message=$(echo "@everyone **${{ env.VERSION }}**\n$commit")
           curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@app/build/discord-${{ env.VERSION }}.eapk" \
+          -F "file=@${{ env.APP_PATH }}" \
           ${{ env.WEBHOOK }}
