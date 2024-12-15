@@ -5,6 +5,7 @@ import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.common.models.TrackDetails
 import dev.brahmkshatriya.echo.common.models.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -67,11 +68,19 @@ class ExtensionUnitTest {
             ),
             duration = 120000
         )
+        val details = TrackDetails("", track, null)
 
         suspend fun playStop() {
-            extension.onStartedPlaying("", null, track)
-            delay(30000)
-            extension.onStoppedPlaying("", null, track)
+            extension.onTrackChanged(details)
+            delay(10000)
+            extension.onPlayingStateChanged(details, false)
+            delay(15000)
+            extension.onPlayingStateChanged(details, true)
+            delay(5000)
+            extension.onPlayingStateChanged(details, false)
+            delay(60000)
+            extension.onTrackChanged(null)
+            delay(60000)
         }
         playStop()
     }
