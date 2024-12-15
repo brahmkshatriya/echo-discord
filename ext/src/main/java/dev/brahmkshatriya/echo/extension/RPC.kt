@@ -44,7 +44,7 @@ class RPC(
 
     var type: Type? = null
     var activityName: String? = null
-    var details: String? = null
+    var detail: String? = null
     var state: String? = null
     var largeImage: ImageLink? = null
     var smallImage: ImageLink? = null
@@ -63,7 +63,7 @@ class RPC(
                     Activity(
                         name = activityName,
                         state = state,
-                        details = details,
+                        details = detail,
                         type = type?.value,
                         timestamps = if (startTimestamp != null)
                             Activity.Timestamps(startTimestamp, endTimeStamp)
@@ -170,7 +170,7 @@ class RPC(
                 }
 
                 11 -> sendHeartBeat()
-                7 -> webSocket.close(400, "Reconnect")
+                7 -> webSocket.close(4000, "Reconnect")
                 9 -> {
                     sendHeartBeat()
                     sendIdentity()

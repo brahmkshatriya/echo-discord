@@ -10,7 +10,7 @@ import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Request
-import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.common.models.TrackDetails
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.providers.MusicExtensionsProvider
 import dev.brahmkshatriya.echo.common.settings.Setting
@@ -24,6 +24,8 @@ import dev.brahmkshatriya.echo.extension.models.Type
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
+import java.util.Timer
+import java.util.TimerTask
 import java.util.concurrent.TimeUnit.SECONDS
 
 open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient,
@@ -185,17 +187,11 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         rpc = getRPC(token)
     }
 
-    override suspend fun onMarkAsPlayed(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {
-    }
-
     private val appIconImage =
         "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png".toImageHolder()
 
-    override suspend fun onStartedPlaying(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {
+    private suspend fun sendRpc(details: TrackDetails) {
+        val (extensionId, track, context) = details
         val rpc = rpc ?: throw ClientException.LoginRequired()
         if (extensionId in disableClients) return
 
@@ -212,7 +208,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
 
             val artists = track.artists.joinToString(", ") { it.name }
             state = artists
-            details = track.title
+            detail = track.title
             startTimestamp = System.currentTimeMillis()
             endTimeStamp = track.duration?.let { startTimestamp!! + it }
             largeImage = track.cover?.let { ImageLink(track.album?.title ?: track.title, it) }
@@ -238,6 +234,27 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         }
     }
 
+    override suspend fun onTrackChanged(details: TrackDetails?) {
+        if (details == null) rpc?.sendDefaultPresence(invisibility)
+        else sendRpc(details)
+    }
+
+    private val pauseWaitTime = 10000L // if the track isn't played in 10sec, show pause status
+    private var timer = Timer()
+    override suspend fun onPlayingStateChanged(details: TrackDetails, isPlaying: Boolean) {
+        if (isPlaying) {
+            timer.cancel()
+            sendRpc(details)
+        } else {
+            timer = Timer()
+            timer.schedule(object : TimerTask() {
+                override fun run() {
+                    rpc?.sendDefaultPresence(invisibility)
+                }
+            }, pauseWaitTime)
+        }
+    }
+
     private suspend fun getSharableUrl(clientId: String, item: EchoMediaItem): String? {
         val client = extensionsMap[clientId] as? ShareClient ?: return null
         return runCatching { client.onShare(item) }.getOrNull()
@@ -253,13 +270,6 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
             is EchoMediaItem.Lists.RadioItem -> "radio"
         }
         return "echo://music/$clientId/$type/${mediaItem.id}"
-    }
-
-    override suspend fun onStoppedPlaying(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {
-        val rpc = rpc ?: throw ClientException.LoginRequired()
-        rpc.sendDefaultPresence(invisibility)
     }
 
     override val requiredMusicExtensions: List<String> = listOf()
