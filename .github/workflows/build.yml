@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      NAME: Discord RPC Extension
+      TAG: discord
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -21,8 +25,6 @@ jobs:
 
       - name: Cook Env
         run: |
-          echo "NAME=Discord RPC Extension" >> $GITHUB_ENV
-          echo "TAG=discord" >> $GITHUB_ENV
           echo -e "## ${{ env.NAME }}\n${{ github.event.head_commit.message }}" > commit.txt
           version=$( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
           echo "VERSION=v$version" >> $GITHUB_ENV
