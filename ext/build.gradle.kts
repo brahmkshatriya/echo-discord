@@ -21,10 +21,6 @@ kotlin {
 dependencies {
     val libVersion: String by project
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    api("com.github.Blatzar:NiceHttp:0.4.11")
-
-    api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
-    api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
