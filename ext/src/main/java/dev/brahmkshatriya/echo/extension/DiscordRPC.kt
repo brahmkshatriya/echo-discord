@@ -95,7 +95,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                             "c_profile",
                             "d_try_echo"
                         ),
-                        setOf(0, 2)
+                        setOf(0, 1)
                     )
                 )
             ),
@@ -279,7 +279,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     }
 
     private suspend fun getUserData(extensionId: String) = runCatching {
-        val client = extensionsMap[extensionId]?.instance?.value?.getOrNull()
+        val client = extensionsMap[extensionId]?.instance?.value()?.getOrNull()
         if (client is LoginClient && client is ShareClient) {
             val user = client.getCurrentUser() ?: return@runCatching null
             val link = client.onShare(user.toMediaItem())
