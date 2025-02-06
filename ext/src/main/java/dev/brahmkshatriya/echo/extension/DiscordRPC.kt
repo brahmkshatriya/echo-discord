@@ -22,6 +22,7 @@ import dev.brahmkshatriya.echo.extension.models.ImageLink
 import dev.brahmkshatriya.echo.extension.models.Link
 import dev.brahmkshatriya.echo.extension.models.Type
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import java.util.Timer
@@ -49,8 +50,6 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     private val applicationId = "1135077904435396718"
     private val appName = "Echo"
     private val appUrl = "https://github.com/brahmkshatriya/echo"
-
-    override suspend fun onExtensionSelected() {}
 
     override val settingItems: List<Setting>
         get() = listOf(
@@ -168,7 +167,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         if (data.isBlank()) throw Exception("Login Failed")
         val token = data.trim('"')
         val rpc = getRPC(token)
-        val user = rpc.user.first { it != null }
+        val user =
+            runCatching { withTimeout(5000) { rpc.user.first { it != null } } }.getOrNull()
         rpc.stop()
         return listOf(
             User(

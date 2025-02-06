@@ -8,13 +8,16 @@ import dev.brahmkshatriya.echo.extension.models.Presence
 import dev.brahmkshatriya.echo.extension.models.Res
 import dev.brahmkshatriya.echo.extension.models.Type
 import dev.brahmkshatriya.echo.extension.models.User
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -25,14 +28,20 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.net.SocketException
+import java.net.UnknownHostException
 
 class RPC(
-    client: OkHttpClient,
+    private val client: OkHttpClient,
     private val json: Json,
     private val token: String,
     private val applicationId: String,
     private val imageUploader: ImageUploader
 ) {
+
+    private val scope = CoroutineScope(Dispatchers.IO) + CoroutineExceptionHandler { _, t ->
+        println("RPC Error : ${t.message}")
+    }
 
     private val creationTime = System.currentTimeMillis()
 
@@ -40,7 +49,8 @@ class RPC(
         .url("wss://gateway.discord.gg/?encoding=json&v=10")
         .build()
 
-    private var webSocket = client.newWebSocket(request, Listener())
+    private val listener = Listener()
+    private var webSocket = client.newWebSocket(request, listener)
 
     var type: Type? = null
     var activityName: String? = null
@@ -85,7 +95,8 @@ class RPC(
                 since = creationTime,
                 status = status(invisible)
             )
-        ))
+        )
+        )
     }
 
     private val assetApi = RPCExternalAsset(applicationId, token, client, json)
@@ -133,13 +144,15 @@ class RPC(
 
     fun stop() {
         webSocket.close(4000, "Stop")
+        scope.cancel()
     }
 
     inner class Listener : WebSocketListener() {
         private var seq: Int? = null
         private var heartbeatInterval: Long? = null
 
-        private var scope = CoroutineScope(Dispatchers.IO)
+
+
         private var previous: Job? = null
         private fun sendHeartBeat() {
             previous?.cancel()
@@ -186,7 +199,14 @@ class RPC(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            println("Discord WebSocket Failure : ${t.message}")
+            scope.launch {
+                if (t is SocketException || t is UnknownHostException) {
+                    delay(3000)
+                    this@RPC.webSocket = client.newWebSocket(request, Listener())
+                } else {
+                    throw t
+                }
+            }
         }
     }
 }
