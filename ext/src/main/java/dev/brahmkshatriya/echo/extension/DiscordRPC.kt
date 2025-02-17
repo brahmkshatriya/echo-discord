@@ -22,12 +22,11 @@ import dev.brahmkshatriya.echo.extension.models.ImageLink
 import dev.brahmkshatriya.echo.extension.models.Link
 import dev.brahmkshatriya.echo.extension.models.Type
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.TimeUnit.SECONDS
+import kotlinx.serialization.json.Json
 
 open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient,
     MusicExtensionsProvider {
@@ -167,8 +166,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         if (data.isBlank()) throw Exception("Login Failed")
         val token = data.trim('"')
         val rpc = getRPC(token)
-        val user =
-            runCatching { withTimeout(5000) { rpc.user.first { it != null } } }.getOrNull()
+        val user = runCatching { rpc.user.first { it != null } }.getOrNull()
         rpc.stop()
         return listOf(
             User(
@@ -225,7 +223,6 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                     "b_artist" -> track.artists.firstOrNull()?.run {
                         getSharableUrl(extensionId, toMediaItem())?.let { Link(name, it) }
                     }
-
                     "c_profile" -> getUserData(extensionId)?.let { Link("Profile", it.second) }
                     "d_try_echo" -> Link("Try $appName", appUrl)
                     else -> null
@@ -286,5 +283,4 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
             user to link
         } else null
     }.getOrNull()
-
 }
