@@ -20,9 +20,6 @@ import kotlin.coroutines.suspendCoroutine
 open class ImageUploader(
     private val client: OkHttpClient, private val json: Json
 ) {
-
-    open suspend fun getByteArray(uri: String): ByteArray? = null
-
     @Serializable
     data class ApiResponse(
         val status: String, val data: Data
@@ -32,7 +29,7 @@ open class ImageUploader(
     data class Data(val url: String)
 
     private val api = "https://tmpfiles.org/api/v1/upload"
-    private suspend fun uploadImage(byteArray: ByteArray): String? {
+    suspend fun uploadImage(byteArray: ByteArray): String? {
         val requestBody = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart(
             "file", "image.png", byteArray.toRequestBody("image/*".toMediaType())
         ).build()
@@ -43,7 +40,7 @@ open class ImageUploader(
         }.getOrNull()?.data?.url?.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/")
     }
 
-    suspend fun getImageUrl(image: ImageHolder): String? {
+    open suspend fun getImageUrl(image: ImageHolder): String? {
         when (image) {
             is ImageHolder.UrlRequestImageHolder -> {
                 if (image.request.headers.isEmpty()) return image.request.url
@@ -57,10 +54,7 @@ open class ImageUploader(
                 }
             }
 
-            is ImageHolder.UriImageHolder -> {
-                val byteArray = getByteArray(image.uri) ?: return null
-                return uploadImage(byteArray)
-            }
+            else -> throw IllegalArgumentException("Invalid image holder type")
         }
     }
 
