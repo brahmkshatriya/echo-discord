@@ -9,9 +9,11 @@ import dev.brahmkshatriya.echo.common.helpers.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
+import dev.brahmkshatriya.echo.common.models.Message
 import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.TrackDetails
 import dev.brahmkshatriya.echo.common.models.User
+import dev.brahmkshatriya.echo.common.providers.MessageFlowProvider
 import dev.brahmkshatriya.echo.common.providers.MusicExtensionsProvider
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingCategory
@@ -21,15 +23,16 @@ import dev.brahmkshatriya.echo.common.settings.Settings
 import dev.brahmkshatriya.echo.extension.models.ImageLink
 import dev.brahmkshatriya.echo.extension.models.Link
 import dev.brahmkshatriya.echo.extension.models.Type
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.TimeUnit.SECONDS
-import kotlinx.serialization.json.Json
 
 open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient,
-    MusicExtensionsProvider {
+    MusicExtensionsProvider, MessageFlowProvider {
 
     val json = Json {
         encodeDefaults = true
@@ -160,13 +163,15 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         User(id, username, userAvatar().toImageHolder())
     }
 
-    private fun getRPC(token: String) = RPC(client, json, token, applicationId, uploader)
+    private fun getRPC(token: String) =
+        RPC(client, json, token, applicationId, uploader, messageFlow)
 
     override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
-        if (data.isBlank()) throw Exception("Login Failed")
+        if (data.isBlank()) throw Exception("No token found")
         val token = data.trim('"')
         val rpc = getRPC(token)
-        val user = runCatching { rpc.user.first { it != null } }.getOrNull()
+        val user =
+            runCatching { rpc.user.first { it != null } }.getOrNull()
         rpc.stop()
         return listOf(
             User(
@@ -223,6 +228,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                     "b_artist" -> track.artists.firstOrNull()?.run {
                         getSharableUrl(extensionId, toMediaItem())?.let { Link(name, it) }
                     }
+
                     "c_profile" -> getUserData(extensionId)?.let { Link("Profile", it.second) }
                     "d_try_echo" -> Link("Try $appName", appUrl)
                     else -> null
@@ -231,15 +237,11 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         }
     }
 
-    override suspend fun onTrackChanged(details: TrackDetails?) {
-        if (details == null) rpc?.sendDefaultPresence(invisibility)
-        else sendRpc(details)
-    }
-
     private val pauseWaitTime = 10000L // if the track isn't played in 10sec, show pause status
     private var timer = Timer()
-    override suspend fun onPlayingStateChanged(details: TrackDetails, isPlaying: Boolean) {
-        if (isPlaying) {
+    override suspend fun onPlayingStateChanged(details: TrackDetails?, isPlaying: Boolean) {
+        if (details == null) rpc?.sendDefaultPresence(invisibility)
+        else if (isPlaying) {
             timer.cancel()
             sendRpc(details)
         } else {
@@ -283,4 +285,9 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
             user to link
         } else null
     }.getOrNull()
+
+    private lateinit var messageFlow: MutableSharedFlow<Message>
+    override fun setMessageFlow(messageFlow: MutableSharedFlow<Message>) {
+        this.messageFlow = messageFlow
+    }
 }

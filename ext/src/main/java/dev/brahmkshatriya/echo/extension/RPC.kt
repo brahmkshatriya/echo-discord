@@ -1,5 +1,6 @@
 package dev.brahmkshatriya.echo.extension
 
+import dev.brahmkshatriya.echo.common.models.Message
 import dev.brahmkshatriya.echo.extension.models.Activity
 import dev.brahmkshatriya.echo.extension.models.Identity
 import dev.brahmkshatriya.echo.extension.models.ImageLink
@@ -10,10 +11,13 @@ import dev.brahmkshatriya.echo.extension.models.Type
 import dev.brahmkshatriya.echo.extension.models.User
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -36,11 +40,17 @@ class RPC(
     private val json: Json,
     private val token: String,
     private val applicationId: String,
-    private val imageUploader: ImageUploader
+    private val imageUploader: ImageUploader,
+    private val messageFlow: MutableSharedFlow<Message>,
 ) {
 
+    @OptIn(DelicateCoroutinesApi::class)
     private val scope = CoroutineScope(Dispatchers.IO) + CoroutineExceptionHandler { _, t ->
-        println("RPC Error : ${t.message}")
+        GlobalScope.launch(Dispatchers.IO) {
+            messageFlow.emit(
+                Message("Discord RPC: ${t.message}")
+            )
+        }
     }
 
     private val creationTime = System.currentTimeMillis()
@@ -151,8 +161,6 @@ class RPC(
         private var seq: Int? = null
         private var heartbeatInterval: Long? = null
 
-
-
         private var previous: Job? = null
         private fun sendHeartBeat() {
             previous?.cancel()
@@ -192,10 +200,10 @@ class RPC(
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            println("Discord WebSocket Server Closed : $code $reason")
             if (code == 4000) {
                 previous?.cancel()
             }
+            scope.launch { throw Exception("Discord WebSocket Server Closed : $code $reason") }
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
