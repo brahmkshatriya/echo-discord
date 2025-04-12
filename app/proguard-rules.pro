@@ -1,1 +1,2 @@
 -keep class dev.brahmkshatriya.echo.** { *; }
+-dontwarn kotlin.uuid.Uuid$Companion
