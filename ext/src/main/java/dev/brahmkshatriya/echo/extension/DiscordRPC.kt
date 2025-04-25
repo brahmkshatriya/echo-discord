@@ -158,7 +158,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
 })()"""
 
     override val loginWebViewInitialUrl = Request("https://discord.com/login")
-    override val loginWebViewStopUrlRegex = "https://discord\\.com/channels/@me".toRegex()
+    override val loginWebViewStopUrlRegex = "https://discord\\.com/app".toRegex()
     override suspend fun getCurrentUser() = rpc?.user?.value?.run {
         User(id, username, userAvatar().toImageHolder())
     }
@@ -166,9 +166,10 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     private fun getRPC(token: String) =
         RPC(client, json, token, applicationId, uploader, messageFlow)
 
-    override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
-        if (data.isBlank()) throw Exception("No token found")
-        val token = data.trim('"')
+    override suspend fun onLoginWebviewStop(url: String, data: Map<String, String>): List<User> {
+        val result = data.values.first()
+        if (result.isBlank()) throw Exception("No token found")
+        val token = result.trim('"')
         val rpc = getRPC(token)
         val user =
             runCatching { rpc.user.first { it != null } }.getOrNull()
