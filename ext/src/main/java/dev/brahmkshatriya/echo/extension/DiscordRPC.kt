@@ -70,8 +70,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                         "Activity Name",
                         "activityName",
                         "Name of the Activity in \"Listening to [...]\"",
-                        listOf(appName, "[Extension Name]", "[Album/Playlist Name]", "[Song Name]"),
-                        listOf("a_echo", "b_extension", "c_context", "d_track"),
+                        listOf(appName, "[Extension Name]", "[Album/Playlist Name]", "[Song Name]", "[Artist Name]"),
+                        listOf("a_echo", "b_extension", "c_context", "d_track", "e_name"),
                         setOf(0)
                     ),
                     SettingSwitch(
@@ -208,6 +208,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                 "b_extension" -> extensionsMap[extensionId]?.name ?: extensionId
                 "c_context" -> context?.title ?: track.album?.title ?: track.title
                 "d_track" -> track.title
+                "e_name" -> track.artists.joinToString(", ") { it.name }.ifEmpty { track.title }
                 else -> appName
             }
 
