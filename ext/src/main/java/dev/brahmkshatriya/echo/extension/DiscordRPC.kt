@@ -203,6 +203,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         rpc.send(invisibility) {
             type = Type.valueOf(activityType)
 
+            val artists = track.artists.joinToString(", ") { it.name }
+
             activityName = when (activityNameType) {
                 "a_echo" -> appName
                 "b_extension" -> extensionsMap[extensionId]?.name ?: extensionId
@@ -212,8 +214,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                 else -> appName
             }
 
-            val artists = track.artists.joinToString(", ") { it.name }
-            state = artists
+            state = if (activityNameType == "e_name") null else artists
+
             detail = track.title
             startTimestamp = System.currentTimeMillis()
             endTimeStamp = track.duration?.let { startTimestamp!! + it }
