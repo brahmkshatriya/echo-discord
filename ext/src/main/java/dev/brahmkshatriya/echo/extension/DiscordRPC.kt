@@ -210,7 +210,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                 "b_extension" -> extensionsMap[extensionId]?.name ?: extensionId
                 "c_context" -> context?.title ?: track.album?.title ?: track.title
                 "d_track" -> track.title
-                "e_name" -> track.artists.joinToString(", ") { it.name }.ifEmpty { track.title }
+                "e_name" -> artists.ifEmpty { track.title }
                 else -> appName
             }
 
