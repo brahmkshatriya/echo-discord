@@ -70,7 +70,13 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                         "Activity Name",
                         "activityName",
                         "Name of the Activity in \"Listening to [...]\"",
-                        listOf(appName, "[Extension Name]", "[Album/Playlist Name]", "[Song Name]", "[Artist Name]),
+                        listOf(
+                            appName,
+                            "[Extension Name]",
+                            "[Album/Playlist Name]",
+                            "[Song Name]",
+                            "[Artist Name]"
+                        ),
                         listOf("a_echo", "b_extension", "c_context", "d_track", "e_name"),
                         setOf(0)
                     ),
@@ -154,7 +160,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     }
 
     override val javascriptToEvaluate = """(function() {
-    return (webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken();
+    const m = []; webpackChunkdiscord_app.push([[""], {}, e => {for (let c in e.c)m.push(e.c[c])}]);
+    return m.find(n => n?.exports?.default?.getToken !== void 0)?.exports?.default?.getToken();
 })()"""
 
     override val loginWebViewInitialUrl = Request("https://discord.com/login")
@@ -169,7 +176,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
 
     override suspend fun onLoginWebviewStop(url: String, data: Map<String, String>): List<User> {
         val result = data.values.first()
-        if (result.isBlank()) throw Exception("No token found")
+        if (result.length != 72) throw Exception("No token found")
         val token = result.trim('"')
         val rpc = getRPC(token)
         val user =
@@ -210,7 +217,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
                 "b_extension" -> extensionsMap[extensionId]?.name ?: extensionId
                 "c_context" -> context?.title ?: track.album?.title ?: track.title
                 "d_track" -> track.title
-                "e_name" -> artists.ifEmpty { track.title }
+                "e_name" -> artists.ifEmpty { appName }
                 else -> appName
             }
 
