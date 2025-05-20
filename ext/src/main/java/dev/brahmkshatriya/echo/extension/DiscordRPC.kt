@@ -176,7 +176,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
 
     override suspend fun onLoginWebviewStop(url: String, data: Map<String, String>): List<User> {
         val result = data.values.first()
-        if (result.length != 72) throw Exception("No token found")
+        if (result.length != 72) throw Exception("No token found, result size: ${result.length}")
         val token = result.trim('"')
         val rpc = getRPC(token)
         val user =
