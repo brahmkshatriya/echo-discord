@@ -12,7 +12,7 @@ dependencies {
 
 val extType: String by project
 val extId: String by project
-val extClass: String by project
+val extClass = "AndroidDiscordRPC"
 
 val extIconUrl: String? by project
 val extName: String by project
@@ -37,6 +37,22 @@ tasks.register("uninstall") {
     }
 }
 
+val outputDir = file("${layout.buildDirectory.asFile.get()}/generated/proguard")
+val generatedProguard = file("${outputDir}/generated-rules.pro")
+
+tasks.register("generateProguardRules") {
+    doLast {
+        outputDir.mkdirs()
+        generatedProguard.writeText(
+            "-dontobfuscate\n-keep,allowoptimization class dev.brahmkshatriya.echo.extension.$extClass"
+        )
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("generateProguardRules")
+}
+
 android {
     namespace = "dev.brahmkshatriya.echo.extension"
     compileSdk = 35
@@ -48,7 +64,7 @@ android {
         manifestPlaceholders.apply {
             put("type", "dev.brahmkshatriya.echo.${extType}")
             put("id", extId)
-            put("class_path", "dev.brahmkshatriya.echo.extension.AndroidDiscordRPC")
+            put("class_path", "dev.brahmkshatriya.echo.extension.$extClass")
             put("version", verName)
             put("version_code", verCode.toString())
             put("icon_url", extIconUrl ?: "")
@@ -67,7 +83,7 @@ android {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                generatedProguard.absolutePath
             )
         }
     }
