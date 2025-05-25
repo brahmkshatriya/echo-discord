@@ -6,6 +6,7 @@ import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
 import dev.brahmkshatriya.echo.common.helpers.ClientException
+import dev.brahmkshatriya.echo.common.helpers.WebViewRequest
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
@@ -31,7 +32,7 @@ import java.util.Timer
 import java.util.TimerTask
 import java.util.concurrent.TimeUnit.SECONDS
 
-open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerClient,
+open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     MusicExtensionsProvider, MessageFlowProvider {
 
     val json = Json {
@@ -159,13 +160,49 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
         setting = settings
     }
 
-    override val javascriptToEvaluate = """(function() {
-    const m = []; webpackChunkdiscord_app.push([[""], {}, e => {for (let c in e.c)m.push(e.c[c])}]);
-    return m.find(n => n?.exports?.default?.getToken !== void 0)?.exports?.default?.getToken();
-})()"""
+    val bruh = """function () {
+        'use strict';
 
-    override val loginWebViewInitialUrl = Request("https://discord.com/login")
-    override val loginWebViewStopUrlRegex = "https://discord\\.com/app".toRegex()
+        const tokenString = localStorage.getItem("token");
+        if (tokenString) {
+            try {
+                const token = JSON.parse(tokenString);
+                console.log("Discord Token (parsed):", token);
+            } catch {
+                console.log("Discord Token (raw):", tokenString);
+            }
+        } else {
+            console.log("No Discord token found in localStorage.");
+        }
+    }""".trimIndent()
+
+    override val webViewRequest = object : WebViewRequest.Evaluate<List<User>> {
+        override val initialUrl = Request("https://discord.com/login")
+        override val javascriptToEvaluateOnPageStart =
+            "function() { window.LOCAL_STORAGE = localStorage; }"
+        override val javascriptToEvaluate =
+            "function() { return window.LOCAL_STORAGE.getItem('token'); }"
+        override val stopUrlRegex = "https://discord\\.com/app".toRegex()
+
+        override suspend fun onStop(url: Request, data: String?): List<User> {
+            val token = data.orEmpty().trim('"')
+            if (token.length != 70) throw Exception("Token not found, token length: ${token.length}")
+            val rpc = getRPC(token)
+            val user =
+                runCatching { rpc.user.first { it != null } }.getOrNull()
+                    ?: throw Exception("Failed to load user data.")
+            rpc.stop()
+            return listOf(
+                User(
+                    user.id,
+                    user.globalName ?: user.username,
+                    user.userAvatar().toImageHolder(),
+                    "@${user.username}",
+                    mapOf("token" to token)
+                )
+            )
+        }
+    }
 
     override suspend fun getCurrentUser() = rpc?.user?.value?.run {
         User(id, username, userAvatar().toImageHolder())
@@ -174,28 +211,14 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView.Evaluate, TrackerCl
     private fun getRPC(token: String) =
         RPC(client, json, token, applicationId, uploader, messageFlow)
 
-    override suspend fun onLoginWebviewStop(url: String, data: Map<String, String>): List<User> {
-        val result = data.values.first()
-        if (result.length != 72) throw Exception("No token found, result size: ${result.length}")
-        val token = result.trim('"')
-        val rpc = getRPC(token)
-        val user =
-            runCatching { rpc.user.first { it != null } }.getOrNull()
-        rpc.stop()
-        return listOf(
-            User(
-                token,
-                user?.globalName ?: "Discord User",
-                user?.userAvatar()?.toImageHolder(),
-                user?.username?.let { "@$it" }
-            )
-        )
-    }
-
     private var rpc: RPC? = null
     override suspend fun onSetLoginUser(user: User?) {
         rpc?.stop()
-        val token = user?.id ?: return
+        if (user == null) {
+            rpc = null
+            return
+        }
+        val token = user.extras["token"] ?: throw ClientException.Unauthorized(user.id)
         rpc = getRPC(token)
     }
 
