@@ -185,7 +185,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         override val stopUrlRegex = "https://discord\\.com/app".toRegex()
 
         override suspend fun onStop(url: Request, data: String?): List<User> {
-            val token = data.orEmpty().trim('"')
+            val token = data.orEmpty().trim('"').trim('\'')
             if (token.length != 70) throw Exception("Token not found, token length: ${token.length}")
             val rpc = getRPC(token)
             val user =
