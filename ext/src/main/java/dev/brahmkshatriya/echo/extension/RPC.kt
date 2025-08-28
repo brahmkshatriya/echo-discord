@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -138,6 +137,7 @@ class RPC(
         block.invoke(this@RPC)
         user.first { it != null }
         val presence = createPresence(invisible)
+        println("Sending: $presence")
         webSocket.send(presence)
     }
 
@@ -148,7 +148,9 @@ class RPC(
                     3,
                     Presence(status = status(invisible))
                 )
-            )
+            ).also {
+                println("Sending Default Presence: $it")
+            }
         )
     }
 
@@ -172,6 +174,7 @@ class RPC(
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             val res = json.decodeFromString<Res>(text)
+            println(json.encodeToString(res).take(2000))
             seq = res.s
             when (res.op) {
                 10 -> {

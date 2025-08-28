@@ -42,7 +42,7 @@ open class ImageUploader(
 
     open suspend fun getImageUrl(image: ImageHolder): String? {
         when (image) {
-            is ImageHolder.UrlRequestImageHolder -> {
+            is ImageHolder.NetworkRequestImageHolder -> {
                 if (image.request.headers.isEmpty()) return image.request.url
                 else {
                     val request = Request.Builder().url(image.request.url)

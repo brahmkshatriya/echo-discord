@@ -7,16 +7,20 @@ import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
 import dev.brahmkshatriya.echo.common.helpers.ClientException
 import dev.brahmkshatriya.echo.common.helpers.WebViewRequest
+import dev.brahmkshatriya.echo.common.models.Album
+import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Message
-import dev.brahmkshatriya.echo.common.models.Request
+import dev.brahmkshatriya.echo.common.models.NetworkRequest
+import dev.brahmkshatriya.echo.common.models.NetworkRequest.Companion.toGetRequest
+import dev.brahmkshatriya.echo.common.models.Playlist
+import dev.brahmkshatriya.echo.common.models.Radio
+import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.TrackDetails
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.providers.MessageFlowProvider
 import dev.brahmkshatriya.echo.common.providers.MusicExtensionsProvider
-import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingCategory
 import dev.brahmkshatriya.echo.common.settings.SettingMultipleChoice
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
@@ -54,85 +58,10 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     private val appName = "Echo"
     private val appUrl = "https://github.com/brahmkshatriya/echo"
 
-    override val settingItems: List<Setting>
-        get() = listOf(
-            SettingCategory(
-                "Looks",
-                "looks",
-                listOf(
-                    SettingMultipleChoice(
-                        "Activity Type",
-                        "activityType",
-                        "How the RPC activity title will be shown",
-                        Type.entries.map { it.title },
-                        Type.entries.map { it.name },
-                    ),
-                    SettingMultipleChoice(
-                        "Activity Name",
-                        "activityName",
-                        "Name of the Activity in \"Listening to [...]\"",
-                        listOf(
-                            appName,
-                            "[Extension Name]",
-                            "[Album/Playlist Name]",
-                            "[Song Name]",
-                            "[Artist Name]"
-                        ),
-                        listOf("a_echo", "b_extension", "c_context", "d_track", "e_name"),
-                        setOf(0)
-                    ),
-                    SettingSwitch(
-                        "Show Echo Icon",
-                        "showEchoIcon",
-                        "Show Small Echo Icon on the RPC.",
-                        true
-                    ),
-                    SettingMultipleChoice(
-                        "RPC Buttons",
-                        "selectedButtons",
-                        "The buttons to show on the RPC. (Only 2 will be visible)",
-                        listOf(
-                            "Play/Play on $appName",
-                            "Song Artist",
-                            "Profile",
-                            "Try Echo"
-                        ),
-                        listOf(
-                            "a_play",
-                            "b_artist",
-                            "c_profile",
-                            "d_try_echo"
-                        ),
-                        setOf(0, 1)
-                    )
-                )
-            ),
-            SettingCategory(
-                "Behavior",
-                "behavior",
-                listOf(
-                    SettingSwitch(
-                        "Stay Invisible",
-                        "invisible",
-                        "Stay invisible when you are not actually online. If this is off, you will become \"idle\" on discord when listening to songs on Echo.",
-                        false
-                    ),
-                    SettingSwitch(
-                        "Use Music Url instead of Echo URI",
-                        "useMusicUrl",
-                        "The Play Button will allow opening music's actual link on extension's site. This will disable people to directly play music on Echo when clicked on play button & instead open the site.",
-                        false
-                    ),
-                    SettingMultipleChoice(
-                        "Disable for Extensions",
-                        "disable",
-                        "Disable RPC for these extensions.",
-                        extensionsMap.values.map { it.name },
-                        extensionsMap.keys.toList(),
-                    )
-                )
-            )
-        )
+    private lateinit var setting: Settings
+    override fun setSettings(settings: Settings) {
+        setting = settings
+    }
 
     private val activityType
         get() = setting.getStringSet("activityType")?.firstOrNull() ?: Type.Listening.name
@@ -155,36 +84,99 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     private val disableClients
         get() = setting.getStringSet("disable") ?: emptySet()
 
-    private lateinit var setting: Settings
-    override fun setSettings(settings: Settings) {
-        setting = settings
-    }
-
-    val bruh = """function () {
-        'use strict';
-
-        const tokenString = localStorage.getItem("token");
-        if (tokenString) {
-            try {
-                const token = JSON.parse(tokenString);
-                console.log("Discord Token (parsed):", token);
-            } catch {
-                console.log("Discord Token (raw):", tokenString);
-            }
-        } else {
-            console.log("No Discord token found in localStorage.");
-        }
-    }""".trimIndent()
+    override suspend fun getSettingItems() = listOf(
+        SettingCategory(
+            "Looks",
+            "looks",
+            listOf(
+                SettingMultipleChoice(
+                    "Activity Type",
+                    "activityType",
+                    "How the RPC activity title will be shown",
+                    Type.entries.map { it.title },
+                    Type.entries.map { it.name },
+                ),
+                SettingMultipleChoice(
+                    "Activity Name",
+                    "activityName",
+                    "Name of the Activity in \"Listening to [...]\"",
+                    listOf(
+                        appName,
+                        "[Extension Name]",
+                        "[Album/Playlist Name]",
+                        "[Song Name]",
+                        "[Artist Name]"
+                    ),
+                    listOf("a_echo", "b_extension", "c_context", "d_track", "e_name"),
+                    setOf(0)
+                ),
+                SettingSwitch(
+                    "Show Echo Icon",
+                    "showEchoIcon",
+                    "Show Small Echo Icon on the RPC.",
+                    true
+                ),
+                SettingMultipleChoice(
+                    "RPC Buttons",
+                    "selectedButtons",
+                    "The buttons to show on the RPC. (Only 2 will be visible)",
+                    listOf(
+                        "Play/Play on $appName",
+                        "Song Artist",
+                        "Profile",
+                        "Try Echo"
+                    ),
+                    listOf(
+                        "a_play",
+                        "b_artist",
+                        "c_profile",
+                        "d_try_echo"
+                    ),
+                    setOf(0, 1)
+                )
+            )
+        ),
+        SettingCategory(
+            "Behavior",
+            "behavior",
+            listOf(
+                SettingSwitch(
+                    "Stay Invisible",
+                    "invisible",
+                    "Stay invisible when you are not actually online. If this is off, you will become \"idle\" on discord when listening to songs on Echo.",
+                    false
+                ),
+                SettingSwitch(
+                    "Use Music Url instead of Echo URI",
+                    "useMusicUrl",
+                    "The Play Button will allow opening music's actual link on extension's site. This will disable people to directly play music on Echo when clicked on play button & instead open the site.",
+                    false
+                ),
+                SettingMultipleChoice(
+                    "Disable for Extensions",
+                    "disable",
+                    "Disable RPC for these extensions.",
+                    extensionsMap.values.map { it.name },
+                    extensionsMap.keys.toList(),
+                )
+            )
+        )
+    )
 
     override val webViewRequest = object : WebViewRequest.Evaluate<List<User>> {
-        override val initialUrl = Request("https://discord.com/login")
-        override val javascriptToEvaluateOnPageStart =
-            "function() { window.LOCAL_STORAGE = localStorage; }"
-        override val javascriptToEvaluate =
-            "function() { return window.LOCAL_STORAGE.getItem('token'); }"
-        override val stopUrlRegex = "https://discord\\.com/app".toRegex()
+        override val initialUrl = "https://discord.com/login".toGetRequest()
+        override val javascriptToEvaluateOnPageStart = """
+            function() { 
+                window.LOCAL = localStorage;
+                localStorage.removeItem = function(key) { return true; };
+            }""".trimIndent()
 
-        override suspend fun onStop(url: Request, data: String?): List<User> {
+        override val stopUrlRegex = "https://discord\\.com/app".toRegex()
+        override val javascriptToEvaluate = "function() { return window.LOCAL.getItem('token'); }"
+
+        override suspend fun onStop(
+            url: NetworkRequest, data: String?,
+        ): List<User>? {
             val token = data.orEmpty().trim('"')
             if (token.length <= 69) throw Exception("Token not found, token size: ${token.length}")
             val rpc = getRPC(token)
@@ -204,15 +196,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         }
     }
 
-    override suspend fun getCurrentUser() = rpc?.user?.value?.run {
-        User(id, username, userAvatar().toImageHolder())
-    }
-
-    private fun getRPC(token: String) =
-        RPC(client, json, token, applicationId, uploader, messageFlow)
-
     private var rpc: RPC? = null
-    override suspend fun onSetLoginUser(user: User?) {
+    override fun setLoginUser(user: User?) {
         rpc?.stop()
         if (user == null) {
             rpc = null
@@ -221,6 +206,13 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         val token = user.extras["token"] ?: throw ClientException.Unauthorized(user.id)
         rpc = getRPC(token)
     }
+
+    override suspend fun getCurrentUser() = rpc?.user?.value?.run {
+        User(id, username, userAvatar().toImageHolder())
+    }
+
+    private fun getRPC(token: String) =
+        RPC(client, json, token, applicationId, uploader, messageFlow)
 
     private val appIconImage =
         "mp:app-icons/1135077904435396718/7ac162cf125e5e5e314a5e240726da41.png".toImageHolder()
@@ -251,7 +243,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
             largeImage = track.cover?.let { ImageLink(track.album?.title ?: track.title, it) }
             smallImage = ImageLink(appName, appIconImage).takeIf { showEchoIcon }
 
-            val item = track.toMediaItem()
+            val item = track
             val uri = Link("Play on $appName", getPlayerUrl(extensionId, item))
             val playLink = uri.takeIf { !useMusicUrl }
                 ?: getSharableUrl(extensionId, item)?.let { Link("Play", it) }
@@ -260,7 +252,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                 when (buttonId) {
                     "a_play" -> playLink
                     "b_artist" -> track.artists.firstOrNull()?.run {
-                        getSharableUrl(extensionId, toMediaItem())?.let { Link(name, it) }
+                        getSharableUrl(extensionId, this)?.let { Link(name, it) }
                     }
 
                     "c_profile" -> getUserData(extensionId)?.let { Link("Profile", it.second) }
@@ -273,6 +265,8 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
 
     private val pauseWaitTime = 10000L // if the track isn't played in 10sec, show pause status
     private var timer = Timer()
+
+    override suspend fun onTrackChanged(details: TrackDetails?) {}
     override suspend fun onPlayingStateChanged(details: TrackDetails?, isPlaying: Boolean) {
         if (details == null) rpc?.sendDefaultPresence(invisibility)
         else if (isPlaying) {
@@ -289,18 +283,17 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     }
 
     private suspend fun getSharableUrl(clientId: String, item: EchoMediaItem): String? {
-        val client = extensionsMap[clientId] as? ShareClient ?: return null
+        val client = extensionsMap[clientId]?.instance?.value as? ShareClient ?: return null
         return runCatching { client.onShare(item) }.getOrNull()
     }
 
     private fun getPlayerUrl(clientId: String, mediaItem: EchoMediaItem): String {
         val type = when (mediaItem) {
-            is EchoMediaItem.TrackItem -> "track"
-            is EchoMediaItem.Lists.AlbumItem -> "album"
-            is EchoMediaItem.Lists.PlaylistItem -> "playlist"
-            is EchoMediaItem.Profile.ArtistItem -> "artist"
-            is EchoMediaItem.Profile.UserItem -> "user"
-            is EchoMediaItem.Lists.RadioItem -> "radio"
+            is Artist -> "artist"
+            is Album -> "album"
+            is Playlist -> "playlist"
+            is Radio -> "radio"
+            is Track -> "track"
         }
         return "echo://music/$clientId/$type/${mediaItem.id}"
     }
@@ -315,7 +308,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         val client = extensionsMap[extensionId]?.instance?.value()?.getOrNull()
         if (client is LoginClient && client is ShareClient) {
             val user = client.getCurrentUser() ?: return@runCatching null
-            val link = client.onShare(user.toMediaItem())
+            val link = user.id
             user to link
         } else null
     }.getOrNull()
