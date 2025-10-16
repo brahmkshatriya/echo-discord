@@ -40,22 +40,26 @@ open class ImageUploader {
         }.getOrNull()?.data?.url?.replace("org/", "org/dl/")
     }
 
+    private var last: Pair<ImageHolder, String?>? = null
     open suspend fun getImageUrl(image: ImageHolder): String? {
-        when (image) {
+        if (image == last?.first) return last?.second
+        val url = when (image) {
             is ImageHolder.NetworkRequestImageHolder -> {
-                if (image.request.headers.isEmpty()) return image.request.url
+                if (image.request.headers.isEmpty()) image.request.url
                 else {
                     val request = Request.Builder().url(image.request.url)
                     request.headers(image.request.headers.toHeaders())
                     val byteArray = runCatching {
                         client.newCall(request.build()).await().body.bytes()
                     }.getOrNull() ?: return null
-                    return uploadImage(byteArray)
+                    uploadImage(byteArray)
                 }
             }
 
             else -> throw IllegalArgumentException("${image.javaClass.simpleName} is not supported")
         }
+        last = Pair(image, url)
+        return url
     }
 
     private suspend inline fun Call.await(): okhttp3.Response {

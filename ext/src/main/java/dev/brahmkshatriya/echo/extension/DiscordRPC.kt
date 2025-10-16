@@ -27,8 +27,14 @@ import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
 import dev.brahmkshatriya.echo.extension.models.Activity
 import dev.brahmkshatriya.echo.extension.models.Type
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import kotlin.time.Duration.Companion.minutes
 
 open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     MusicExtensionsProvider {
@@ -38,6 +44,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         private const val APP_URL = "https://github.com/brahmkshatriya/echo"
         private const val PLAY_IMG = "https://files.catbox.moe/7ajka9.gif"
         private const val PAUSE_IMG = "https://files.catbox.moe/8hopuj.png"
+        private const val EMPTY_IMG = "https://files.catbox.moe/w9wb39.png"
     }
 
     open val uploader = ImageUploader()
@@ -62,7 +69,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         get() = setting.getBoolean("ShowEchoIcon") ?: true
 
     private val showButtons
-        get() = setting.getStringSet("SelectedButtons") ?: setOf("a_play", "c_profile")
+        get() = setting.getStringSet("SelectedButtons") ?: setOf("c_profile", "d_try_echo")
 
     private val useMusicUrl
         get() = setting.getBoolean("UseMusicUrl") ?: false
@@ -81,7 +88,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                     "How the RPC activity title will be shown",
                     Type.entries.map { it.title },
                     Type.entries.map { it.name },
-                    Type.Listening.value
+                    0
                 ),
                 SettingList(
                     "Activity Name",
@@ -129,7 +136,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                         "c_profile",
                         "d_try_echo"
                     ),
-                    setOf(0, 1)
+                    setOf(1, 3)
                 )
             )
         ),
@@ -198,7 +205,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         }
         val unauthorized = ClientException.Unauthorized(user.id)
         val token = user.extras["token"] ?: throw unauthorized
-        rpc = RPC(token, filesDir, null)
+        rpc = RPC(token, filesDir, unauthorized)
     }
 
     override suspend fun getCurrentUser(): User? {
@@ -263,7 +270,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                 details = track.title,
                 state = artists,
                 assets = Activity.Assets(
-                    largeImage = track.cover?.discordUri(),
+                    largeImage = track.cover?.discordUri() ?: EMPTY_IMG,
                     smallImage = if (showEchoIcon) if (isPlaying) PLAY_IMG else PAUSE_IMG else null,
                     smallText = APP_NAME,
                     smallUrl = APP_URL
@@ -277,9 +284,17 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
 
     override suspend fun onTrackChanged(details: TrackDetails?) {}
 
+    val scope = CoroutineScope(Dispatchers.IO)
+    var job: Job? = null
     override suspend fun onPlayingStateChanged(details: TrackDetails?, isPlaying: Boolean) {
-        if (details != null) sendRpc(details, isPlaying)
-        else rpc?.clear()
+        job?.cancel()
+        if (details != null) {
+            sendRpc(details, isPlaying)
+            if (!isPlaying) job = scope.launch {
+                delay(1.minutes)
+                runCatching { rpc?.clear() }
+            }
+        } else rpc?.clear()
     }
 
     private suspend
