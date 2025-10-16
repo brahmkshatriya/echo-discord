@@ -17,9 +17,9 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 
-open class ImageUploader(
-    private val client: OkHttpClient, private val json: Json
-) {
+open class ImageUploader {
+    val client = OkHttpClient()
+
     @Serializable
     data class ApiResponse(
         val status: String, val data: Data
@@ -35,9 +35,9 @@ open class ImageUploader(
         ).build()
         val request = Request.Builder().url(api).post(requestBody).build()
         return runCatching {
-            val res = client.newCall(request).await()
-            json.decodeFromString<ApiResponse>(res.body.string())
-        }.getOrNull()?.data?.url?.replace("https://tmpfiles.org/", "https://tmpfiles.org/dl/")
+            val res = client.newCall(request).await().body.string()
+            Json.decodeFromString<ApiResponse>(res)
+        }.getOrNull()?.data?.url?.replace("org/", "org/dl/")
     }
 
     open suspend fun getImageUrl(image: ImageHolder): String? {
@@ -54,7 +54,7 @@ open class ImageUploader(
                 }
             }
 
-            else -> throw IllegalArgumentException("Invalid image holder type")
+            else -> throw IllegalArgumentException("${image.javaClass.simpleName} is not supported")
         }
     }
 

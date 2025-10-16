@@ -5,14 +5,10 @@ import android.net.Uri
 import dev.brahmkshatriya.echo.common.models.ImageHolder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
 
 class UriImageUploader(
     private val app: Application,
-    client: OkHttpClient,
-    json: Json,
-) : ImageUploader(client, json) {
+) : ImageUploader() {
 
     override suspend fun getImageUrl(image: ImageHolder): String? {
         val byteArray = when (image) {
