@@ -247,7 +247,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                 "d_try_echo" -> Activity.Button("Try $APP_NAME", APP_URL)
                 else -> null
             }
-        }
+        }.takeIf { it.isNotEmpty() }
         val startTimestamp = System.currentTimeMillis() - details.currentPosition
         val endTimeStamp = (details.totalDuration ?: track.duration)?.let {
             startTimestamp + it - details.currentPosition
