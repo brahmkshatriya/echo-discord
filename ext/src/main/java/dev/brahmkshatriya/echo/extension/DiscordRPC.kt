@@ -223,6 +223,10 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     }
 
     suspend fun ImageHolder.discordUri() = uploader.getImageUrl(this)
+    
+    private fun isValidUrl(url: String?): Boolean {
+        return url != null && (url.startsWith("http://") || url.startsWith("https://"))
+    }
 
     private suspend fun sendRpc(details: TrackDetails, isPlaying: Boolean) {
         val (extensionId, track, context) = details
@@ -230,24 +234,27 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         if (extensionId in disableClients) return
         val artists = track.artists.joinToString(", ") { it.name }
         val uri = Activity.Button("Play on $APP_NAME", getPlayerUrl(extensionId, track))
-        val buttons = showButtons.take(2).mapNotNull { buttonId ->
-            when (buttonId) {
-                "a_play" -> uri.takeIf { !useMusicUrl }
-                    ?: getSharableUrl(extensionId, track)?.let { Activity.Button("Play", it) }
-                    ?: uri
+        val buttons = showButtons.take(2)
+            .mapNotNull { buttonId ->
+                when (buttonId) {
+                    "a_play" -> uri.takeIf { !useMusicUrl }
+                        ?: getSharableUrl(extensionId, track)?.let { Activity.Button("Play", it) }
+                        ?: uri
 
-                "b_artist" -> track.artists.firstOrNull()?.run {
-                    getSharableUrl(extensionId, this)?.let { Activity.Button(name, it) }
+                    "b_artist" -> track.artists.firstOrNull()?.run {
+                        getSharableUrl(extensionId, this)?.let { Activity.Button(name, it) }
+                    }
+
+                    "c_profile" -> getUserData(extensionId)?.let {
+                        Activity.Button("Profile", it.second)
+                    }
+
+                    "d_try_echo" -> Activity.Button("Try $APP_NAME", APP_URL)
+                    else -> null
                 }
-
-                "c_profile" -> getUserData(extensionId)?.let {
-                    Activity.Button("Profile", it.second)
-                }
-
-                "d_try_echo" -> Activity.Button("Try $APP_NAME", APP_URL)
-                else -> null
             }
-        }.takeIf { it.isNotEmpty() }
+            .filter { isValidUrl(it.url) }
+            .takeIf { it.isNotEmpty() }
         val startTimestamp = System.currentTimeMillis() - details.currentPosition
         val endTimeStamp = (details.totalDuration ?: track.duration)?.let {
             startTimestamp + it - details.currentPosition
@@ -302,7 +309,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         val client = extensionsMap[clientId]?.instance?.value as? ShareClient ?: return null
         return runCatching {
             val url = client.onShare(item)
-            if (url.startsWith("http")) url else null
+            if (isValidUrl(url)) url else null
         }.getOrNull()
     }
 
