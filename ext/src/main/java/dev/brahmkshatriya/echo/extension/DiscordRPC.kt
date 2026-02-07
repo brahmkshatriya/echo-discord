@@ -223,6 +223,10 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
     }
 
     suspend fun ImageHolder.discordUri() = uploader.getImageUrl(this)
+    
+    private fun isValidUrl(url: String?): Boolean {
+        return url != null && (url.startsWith("http://") || url.startsWith("https://"))
+    }
 
     private suspend fun sendRpc(details: TrackDetails, isPlaying: Boolean) {
         val (extensionId, track, context) = details
@@ -249,10 +253,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
                     else -> null
                 }
             }
-            .filter { button ->
-                val url = button?.url
-                url != null && (url.startsWith("http://") || url.startsWith("https://"))
-            }
+            .filter { isValidUrl(it.url) }
             .takeIf { it.isNotEmpty() }
         val startTimestamp = System.currentTimeMillis() - details.currentPosition
         val endTimeStamp = (details.totalDuration ?: track.duration)?.let {
@@ -308,7 +309,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         val client = extensionsMap[clientId]?.instance?.value as? ShareClient ?: return null
         return runCatching {
             val url = client.onShare(item)
-            if (url.startsWith("http")) url else null
+            if (isValidUrl(url)) url else null
         }.getOrNull()
     }
 
