@@ -257,7 +257,7 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
             .takeIf { it.isNotEmpty() }
         val startTimestamp = System.currentTimeMillis() - details.currentPosition
         val endTimeStamp = (details.totalDuration ?: track.duration)?.let {
-            startTimestamp + it - details.currentPosition
+            startTimestamp + it
         }
         rpc.newActivity(
             Activity(
