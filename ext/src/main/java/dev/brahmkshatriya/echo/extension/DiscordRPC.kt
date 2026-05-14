@@ -42,9 +42,9 @@ open class DiscordRPC : ExtensionClient, LoginClient.WebView, TrackerClient,
         private const val APP_ID = "1135077904435396718"
         private const val APP_NAME = "Echo"
         private const val APP_URL = "https://github.com/brahmkshatriya/echo"
-        private const val PLAY_IMG = "https://files.catbox.moe/7ajka9.gif"
-        private const val PAUSE_IMG = "https://files.catbox.moe/8hopuj.png"
-        private const val EMPTY_IMG = "https://files.catbox.moe/w9wb39.png"
+        private const val PLAY_IMG = "https://files.catbox.moe/zquioi.gif"
+        private const val PAUSE_IMG = "https://files.catbox.moe/bw30sx.png"
+        private const val EMPTY_IMG = "https://files.catbox.moe/kachl1.png"
     }
 
     open val uploader = ImageUploader()
